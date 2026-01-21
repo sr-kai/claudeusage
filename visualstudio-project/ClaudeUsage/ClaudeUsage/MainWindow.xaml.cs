@@ -1,7 +1,5 @@
 using System.Diagnostics;
 using System.Reflection;
-using System.Windows;
-using System.Windows.Input;
 using System.Windows.Media;
 using ClaudeUsage.Helpers;
 using ClaudeUsage.Models;
@@ -11,9 +9,9 @@ namespace ClaudeUsage;
 
 public partial class MainWindow : FluentWindow
 {
-    private static readonly SolidColorBrush GreenBrush = new(Color.FromRgb(34, 197, 94));
-    private static readonly SolidColorBrush YellowBrush = new(Color.FromRgb(234, 179, 8));
-    private static readonly SolidColorBrush RedBrush = new(Color.FromRgb(239, 68, 68));
+    private static readonly SolidColorBrush GreenBrush = new(System.Windows.Media.Color.FromRgb(34, 197, 94));
+    private static readonly SolidColorBrush YellowBrush = new(System.Windows.Media.Color.FromRgb(234, 179, 8));
+    private static readonly SolidColorBrush RedBrush = new(System.Windows.Media.Color.FromRgb(239, 68, 68));
 
     public MainWindow()
     {
@@ -69,23 +67,23 @@ public partial class MainWindow : FluentWindow
         return GreenBrush;
     }
 
-    private void Window_KeyDown(object sender, KeyEventArgs e)
+    private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        if (e.Key == System.Windows.Input.Key.Escape)
         {
             Hide();
         }
     }
 
-    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+    private async void RefreshButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
-        if (Application.Current is App app)
+        if (System.Windows.Application.Current is App app)
         {
             await app.RefreshUsageData();
         }
     }
 
-    private void GitHubButton_Click(object sender, RoutedEventArgs e)
+    private void GitHubButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
         Process.Start(new ProcessStartInfo
         {
@@ -94,12 +92,12 @@ public partial class MainWindow : FluentWindow
         });
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    private void CloseButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
         Hide();
     }
 
-    private void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
+    private void CheckUpdatesButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
         // For now, just open the GitHub releases page
         Process.Start(new ProcessStartInfo
@@ -109,7 +107,7 @@ public partial class MainWindow : FluentWindow
         });
     }
 
-    private void LaunchAtLoginToggle_Changed(object sender, RoutedEventArgs e)
+    private void LaunchAtLoginToggle_Changed(object sender, System.Windows.RoutedEventArgs e)
     {
         StartupHelper.SetLaunchAtLogin(LaunchAtLoginToggle.IsChecked == true);
     }

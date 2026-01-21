@@ -1,15 +1,14 @@
-using System.Drawing;
-using System.Windows;
 using System.Windows.Threading;
 using ClaudeUsage.Helpers;
 using ClaudeUsage.Models;
 using ClaudeUsage.Services;
 using Wpf.Ui.Appearance;
 using Forms = System.Windows.Forms;
+using Drawing = System.Drawing;
 
 namespace ClaudeUsage;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private Forms.NotifyIcon? _notifyIcon;
     private MainWindow? _mainWindow;
@@ -17,12 +16,12 @@ public partial class App : Application
     private UsageData? _lastUsageData;
     private DateTime _lastUpdated;
 
-    private Icon? _iconGreen;
-    private Icon? _iconYellow;
-    private Icon? _iconRed;
-    private Icon? _iconGray;
+    private Drawing.Icon? _iconGreen;
+    private Drawing.Icon? _iconYellow;
+    private Drawing.Icon? _iconRed;
+    private Drawing.Icon? _iconGray;
 
-    protected override async void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -54,27 +53,27 @@ public partial class App : Application
     private void CreateIcons()
     {
         // Create simple colored icons programmatically
-        _iconGreen = CreateColoredIcon(Color.FromArgb(34, 197, 94));   // Green
-        _iconYellow = CreateColoredIcon(Color.FromArgb(234, 179, 8));  // Yellow
-        _iconRed = CreateColoredIcon(Color.FromArgb(239, 68, 68));     // Red
-        _iconGray = CreateColoredIcon(Color.FromArgb(156, 163, 175));  // Gray
+        _iconGreen = CreateColoredIcon(Drawing.Color.FromArgb(34, 197, 94));   // Green
+        _iconYellow = CreateColoredIcon(Drawing.Color.FromArgb(234, 179, 8));  // Yellow
+        _iconRed = CreateColoredIcon(Drawing.Color.FromArgb(239, 68, 68));     // Red
+        _iconGray = CreateColoredIcon(Drawing.Color.FromArgb(156, 163, 175));  // Gray
     }
 
-    private static Icon CreateColoredIcon(Color color)
+    private static Drawing.Icon CreateColoredIcon(Drawing.Color color)
     {
-        using var bitmap = new Bitmap(16, 16);
-        using var g = Graphics.FromImage(bitmap);
+        using var bitmap = new Drawing.Bitmap(16, 16);
+        using var g = Drawing.Graphics.FromImage(bitmap);
 
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        g.Clear(Color.Transparent);
+        g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.Clear(Drawing.Color.Transparent);
 
         // Draw three bars like the Claude Usage icon
-        using var brush = new SolidBrush(color);
+        using var brush = new Drawing.SolidBrush(color);
         g.FillRectangle(brush, 2, 8, 3, 6);   // Short bar
         g.FillRectangle(brush, 6, 4, 3, 10);  // Medium bar
         g.FillRectangle(brush, 10, 2, 3, 12); // Tall bar
 
-        return Icon.FromHandle(bitmap.GetHicon());
+        return Drawing.Icon.FromHandle(bitmap.GetHicon());
     }
 
     private void CreateTrayIcon()
@@ -134,7 +133,7 @@ public partial class App : Application
         _mainWindow.UpdateUsageData(_lastUsageData, _lastUpdated);
 
         // Position near the tray icon (bottom-right of screen)
-        var workArea = SystemParameters.WorkArea;
+        var workArea = System.Windows.SystemParameters.WorkArea;
         _mainWindow.Left = workArea.Right - _mainWindow.Width - 10;
         _mainWindow.Top = workArea.Bottom - _mainWindow.Height - 10;
 
@@ -191,7 +190,7 @@ public partial class App : Application
         }
     }
 
-    protected override void OnExit(ExitEventArgs e)
+    protected override void OnExit(System.Windows.ExitEventArgs e)
     {
         _notifyIcon?.Dispose();
         _iconGreen?.Dispose();
