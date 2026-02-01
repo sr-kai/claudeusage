@@ -50,3 +50,13 @@ ehthumbs.db
 
 # Publish output
 publish/
+
+# Claude Code / AI assistant files
+.claude/
+openspec/
+AGENTS.md
+CLAUDE.md
+*.claude.json
+
+# Screenshots (optional, remove if you want to include them)
+screenshots/

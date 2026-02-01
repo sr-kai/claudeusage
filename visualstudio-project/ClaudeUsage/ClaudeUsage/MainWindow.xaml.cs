@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using ClaudeUsage.Helpers;
 using ClaudeUsage.Models;
 using Wpf.Ui.Controls;
@@ -13,16 +13,58 @@ public partial class MainWindow : FluentWindow
     private static readonly SolidColorBrush YellowBrush = new(System.Windows.Media.Color.FromRgb(234, 179, 8));
     private static readonly SolidColorBrush RedBrush = new(System.Windows.Media.Color.FromRgb(239, 68, 68));
 
+    private double _targetTop;
+
     public MainWindow()
     {
         InitializeComponent();
 
-        // Set version from assembly
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = $"v{version?.Major}.{version?.Minor}.{version?.Build}";
-
         // Initialize launch at login toggle
         LaunchAtLoginToggle.IsChecked = StartupHelper.IsLaunchAtLoginEnabled();
+    }
+
+    public void ShowWithAnimation(double targetLeft, double targetTop)
+    {
+        _targetTop = targetTop;
+
+        // Start position (slightly below)
+        Left = targetLeft;
+        Top = targetTop + 20;
+        Opacity = 1;
+
+        Show();
+        Activate();
+
+        // Animate slide up
+        var slideAnimation = new DoubleAnimation
+        {
+            From = targetTop + 20,
+            To = targetTop,
+            Duration = TimeSpan.FromMilliseconds(200),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        BeginAnimation(TopProperty, slideAnimation);
+    }
+
+    public void HideWithAnimation()
+    {
+        // Animate slide down
+        var slideAnimation = new DoubleAnimation
+        {
+            To = Top + 20,
+            Duration = TimeSpan.FromMilliseconds(150),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+        };
+
+        slideAnimation.Completed += (s, e) =>
+        {
+            Hide();
+            // Clear animation so position can be set normally next time
+            BeginAnimation(TopProperty, null);
+        };
+
+        BeginAnimation(TopProperty, slideAnimation);
     }
 
     public void UpdateUsageData(UsageData? data, DateTime lastUpdated)
@@ -71,7 +113,7 @@ public partial class MainWindow : FluentWindow
     {
         if (e.Key == System.Windows.Input.Key.Escape)
         {
-            Hide();
+            HideWithAnimation();
         }
     }
 
@@ -87,24 +129,14 @@ public partial class MainWindow : FluentWindow
     {
         Process.Start(new ProcessStartInfo
         {
-            FileName = "https://github.com/anthropics/claude-code",
+            FileName = "https://github.com/sr-kai/claudeusage",
             UseShellExecute = true
         });
     }
 
     private void CloseButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
-        Hide();
-    }
-
-    private void CheckUpdatesButton_Click(object sender, System.Windows.RoutedEventArgs e)
-    {
-        // For now, just open the GitHub releases page
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = "https://github.com/anthropics/claude-code/releases",
-            UseShellExecute = true
-        });
+        HideWithAnimation();
     }
 
     private void LaunchAtLoginToggle_Changed(object sender, System.Windows.RoutedEventArgs e)

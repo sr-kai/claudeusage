@@ -3,10 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="Claude Usage"
-        Width="340"
-        Height="420"
-        WindowStyle="None"
-        AllowsTransparency="True"
+        Width="280"
+        Height="400"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         Topmost="True"
@@ -15,7 +13,7 @@
         WindowBackdropType="Mica"
         KeyDown="Window_KeyDown">
 
-    <Border CornerRadius="8" Padding="16">
+    <Border CornerRadius="8" Padding="16,16,16,12">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -27,11 +25,7 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
-                <ui:SymbolIcon Symbol="DataBarVertical24" FontSize="24" Foreground="{ui:ThemeResource SystemAccentColorPrimaryBrush}" Margin="0,0,8,0"/>
-                <TextBlock Text="Claude Usage" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <TextBlock x:Name="VersionText" Text="v1.0.0" FontSize="12" Foreground="{ui:ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0"/>
-            </StackPanel>
+            <TextBlock Grid.Row="0" Text="Claude Usage for WSL" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,16"/>
 
             <!-- Session Card -->
             <ui:Card Grid.Row="1" Margin="0,0,0,12">
@@ -90,21 +84,17 @@
             </ui:Card>
 
             <!-- Controls -->
-            <StackPanel Grid.Row="3" Margin="0,0,0,8">
-                <ui:Button x:Name="CheckUpdatesButton" Content="Check for Updates" Icon="{ui:SymbolIcon ArrowSync24}" HorizontalAlignment="Stretch" Margin="0,0,0,8" Click="CheckUpdatesButton_Click"/>
-
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Launch at Login" VerticalAlignment="Center"/>
-                    <ui:ToggleSwitch x:Name="LaunchAtLoginToggle" Grid.Column="1" Checked="LaunchAtLoginToggle_Changed" Unchecked="LaunchAtLoginToggle_Changed"/>
-                </Grid>
-            </StackPanel>
+            <Grid Grid.Row="3" Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Launch at Login" VerticalAlignment="Center"/>
+                <ui:ToggleSwitch x:Name="LaunchAtLoginToggle" Grid.Column="1" Checked="LaunchAtLoginToggle_Changed" Unchecked="LaunchAtLoginToggle_Changed"/>
+            </Grid>
 
             <!-- Footer -->
-            <Grid Grid.Row="5">
+            <Grid Grid.Row="5" Margin="0,8,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -113,8 +103,8 @@
                 <TextBlock x:Name="LastUpdatedText" Text="Updated --" FontSize="11" Foreground="{ui:ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <ui:Button x:Name="RefreshButton" Icon="{ui:SymbolIcon ArrowClockwise24}" Appearance="Transparent" Padding="8" ToolTip="Refresh" Click="RefreshButton_Click"/>
-                    <ui:Button x:Name="GitHubButton" Icon="{ui:SymbolIcon Globe24}" Appearance="Transparent" Padding="8" ToolTip="GitHub" Click="GitHubButton_Click"/>
+                    <ui:Button x:Name="RefreshButton" Icon="{ui:SymbolIcon ArrowClockwise24}" Appearance="Transparent" Padding="8" Margin="0,0,4,0" ToolTip="Refresh" Click="RefreshButton_Click"/>
+                    <ui:Button x:Name="GitHubButton" Icon="{ui:SymbolIcon Globe24}" Appearance="Transparent" Padding="8" Margin="0,0,4,0" ToolTip="GitHub" Click="GitHubButton_Click"/>
                     <ui:Button x:Name="CloseButton" Icon="{ui:SymbolIcon Dismiss24}" Appearance="Transparent" Padding="8" ToolTip="Close" Click="CloseButton_Click"/>
                 </StackPanel>
             </Grid>

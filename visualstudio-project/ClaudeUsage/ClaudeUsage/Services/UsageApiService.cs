@@ -12,7 +12,7 @@ public class UsageApiService
 
     public static async Task<UsageData?> GetUsageAsync()
     {
-        var token = CredentialService.GetAccessToken();
+        var token = await CredentialService.GetAccessTokenAsync();
         if (string.IsNullOrEmpty(token))
         {
             return null;
@@ -30,14 +30,19 @@ public class UsageApiService
 
             if (!response.IsSuccessStatusCode)
             {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"API Error: {response.StatusCode} - {errorBody}");
                 return null;
             }
 
             var json = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"API Response: {json}");
             return JsonSerializer.Deserialize<UsageData>(json);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Exception in GetUsageAsync: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             return null;
         }
     }

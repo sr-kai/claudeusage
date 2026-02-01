@@ -1,8 +1,10 @@
+using System.Windows.Controls;
 using System.Windows.Threading;
 using ClaudeUsage.Helpers;
 using ClaudeUsage.Models;
 using ClaudeUsage.Services;
 using Wpf.Ui.Appearance;
+using Wpf.Ui.Controls;
 using Forms = System.Windows.Forms;
 using Drawing = System.Drawing;
 
@@ -15,6 +17,9 @@ public partial class App : System.Windows.Application
     private DispatcherTimer? _refreshTimer;
     private UsageData? _lastUsageData;
     private DateTime _lastUpdated;
+    private ContextMenu? _contextMenu;
+    private System.Windows.Controls.MenuItem? _launchAtLoginItem;
+    private DateTime _lastDeactivated;
 
     private Drawing.Icon? _iconGreen;
     private Drawing.Icon? _iconYellow;
@@ -36,7 +41,11 @@ public partial class App : System.Windows.Application
 
         // Create the main window (hidden initially)
         _mainWindow = new MainWindow();
-        _mainWindow.Deactivated += (s, args) => _mainWindow.Hide();
+        _mainWindow.Deactivated += (s, args) =>
+        {
+            _lastDeactivated = DateTime.Now;
+            _mainWindow.HideWithAnimation();
+        };
 
         // Set up auto-refresh timer (2 minutes)
         _refreshTimer = new DispatcherTimer
@@ -67,11 +76,9 @@ public partial class App : System.Windows.Application
         g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.Clear(Drawing.Color.Transparent);
 
-        // Draw three bars like the Claude Usage icon
+        // Draw a filled circle
         using var brush = new Drawing.SolidBrush(color);
-        g.FillRectangle(brush, 2, 8, 3, 6);   // Short bar
-        g.FillRectangle(brush, 6, 4, 3, 10);  // Medium bar
-        g.FillRectangle(brush, 10, 2, 3, 12); // Tall bar
+        g.FillEllipse(brush, 1, 1, 14, 14);
 
         return Drawing.Icon.FromHandle(bitmap.GetHicon());
     }
@@ -85,60 +92,95 @@ public partial class App : System.Windows.Application
             Text = "Claude Usage - Loading..."
         };
 
-        // Left-click shows the popup
+        // Create WPF context menu with Fluent styling
+        CreateContextMenu();
+
+        // Left-click shows the popup, right-click shows context menu
         _notifyIcon.MouseClick += (s, e) =>
         {
             if (e.Button == Forms.MouseButtons.Left)
             {
                 ShowPopup();
             }
+            else if (e.Button == Forms.MouseButtons.Right)
+            {
+                ShowContextMenu();
+            }
         };
+    }
 
-        // Right-click context menu
-        var contextMenu = new Forms.ContextMenuStrip();
+    private void CreateContextMenu()
+    {
+        _contextMenu = new ContextMenu();
 
-        var refreshItem = new Forms.ToolStripMenuItem("Refresh Now");
+        var refreshItem = new System.Windows.Controls.MenuItem
+        {
+            Header = "Refresh Now",
+            Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowClockwise24 }
+        };
         refreshItem.Click += async (s, e) => await RefreshUsageData();
 
-        var launchAtLoginItem = new Forms.ToolStripMenuItem("Launch at Login")
+        _launchAtLoginItem = new System.Windows.Controls.MenuItem
         {
-            Checked = StartupHelper.IsLaunchAtLoginEnabled()
+            Header = "Launch at Login",
+            IsCheckable = true,
+            IsChecked = StartupHelper.IsLaunchAtLoginEnabled()
         };
-        launchAtLoginItem.Click += (s, e) =>
+        _launchAtLoginItem.Click += (s, e) =>
         {
-            launchAtLoginItem.Checked = !launchAtLoginItem.Checked;
-            StartupHelper.SetLaunchAtLogin(launchAtLoginItem.Checked);
+            StartupHelper.SetLaunchAtLogin(_launchAtLoginItem.IsChecked);
         };
 
-        var exitItem = new Forms.ToolStripMenuItem("Exit");
+        var exitItem = new System.Windows.Controls.MenuItem
+        {
+            Header = "Exit",
+            Icon = new SymbolIcon { Symbol = SymbolRegular.Dismiss24 }
+        };
         exitItem.Click += (s, e) =>
         {
-            _notifyIcon.Visible = false;
+            _notifyIcon!.Visible = false;
             Shutdown();
         };
 
-        contextMenu.Items.Add(refreshItem);
-        contextMenu.Items.Add(launchAtLoginItem);
-        contextMenu.Items.Add(new Forms.ToolStripSeparator());
-        contextMenu.Items.Add(exitItem);
+        _contextMenu.Items.Add(refreshItem);
+        _contextMenu.Items.Add(_launchAtLoginItem);
+        _contextMenu.Items.Add(new Separator());
+        _contextMenu.Items.Add(exitItem);
+    }
 
-        _notifyIcon.ContextMenuStrip = contextMenu;
+    private void ShowContextMenu()
+    {
+        if (_contextMenu == null) return;
+
+        // Update launch at login state
+        if (_launchAtLoginItem != null)
+        {
+            _launchAtLoginItem.IsChecked = StartupHelper.IsLaunchAtLoginEnabled();
+        }
+
+        _contextMenu.IsOpen = true;
     }
 
     private void ShowPopup()
     {
         if (_mainWindow == null) return;
 
+        // If window was just closed by clicking tray icon, don't reopen it
+        // (the click causes Deactivated which hides it, then this runs)
+        if ((DateTime.Now - _lastDeactivated).TotalMilliseconds < 500)
+        {
+            return;
+        }
+
         // Update the window with latest data
         _mainWindow.UpdateUsageData(_lastUsageData, _lastUpdated);
 
         // Position near the tray icon (bottom-right of screen)
         var workArea = System.Windows.SystemParameters.WorkArea;
-        _mainWindow.Left = workArea.Right - _mainWindow.Width - 10;
-        _mainWindow.Top = workArea.Bottom - _mainWindow.Height - 10;
+        var targetLeft = workArea.Right - _mainWindow.Width - 10;
+        var targetTop = workArea.Bottom - _mainWindow.Height - 10;
 
-        _mainWindow.Show();
-        _mainWindow.Activate();
+        _mainWindow.ShowWithAnimation(targetLeft, targetTop);
     }
 
     public async Task RefreshUsageData()
@@ -162,15 +204,15 @@ public partial class App : System.Windows.Application
         _lastUsageData = usage;
         _lastUpdated = DateTime.Now;
 
-        // Update icon based on usage
+        // Update icon based on usage (utilization is already a percentage, e.g. 8.0 = 8%)
         var maxUtilization = Math.Max(
             usage.FiveHour?.Utilization ?? 0,
             usage.SevenDay?.Utilization ?? 0
         );
 
-        if (maxUtilization >= 0.9)
+        if (maxUtilization >= 90)
             _notifyIcon!.Icon = _iconRed;
-        else if (maxUtilization >= 0.7)
+        else if (maxUtilization >= 70)
             _notifyIcon!.Icon = _iconYellow;
         else
             _notifyIcon!.Icon = _iconGreen;

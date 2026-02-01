@@ -20,17 +20,17 @@ public class UsageWindow
     public double Utilization { get; set; }
 
     [JsonPropertyName("resets_at")]
-    public DateTime ResetsAt { get; set; }
+    public DateTimeOffset ResetsAt { get; set; }
 
-    public int UtilizationPercent => (int)(Utilization * 100);
+    public int UtilizationPercent => (int)Utilization;
 
     public string TimeUntilReset
     {
         get
         {
-            var remaining = ResetsAt - DateTime.UtcNow;
+            var remaining = ResetsAt - DateTimeOffset.UtcNow;
             if (remaining.TotalSeconds <= 0)
-                return "Resetting...";
+                return "now";
 
             if (remaining.TotalDays >= 1)
                 return $"{(int)remaining.TotalDays}d {remaining.Hours}h";
@@ -59,4 +59,10 @@ public class ClaudeOAuth
 
     [JsonPropertyName("expiresAt")]
     public long? ExpiresAt { get; set; }
+
+    [JsonPropertyName("scopes")]
+    public string[]? Scopes { get; set; }
+
+    [JsonPropertyName("subscriptionType")]
+    public string? SubscriptionType { get; set; }
 }
