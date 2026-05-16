@@ -24,13 +24,13 @@ public class UsageApiService
             var version = TryGetVersionFromProcess("claude", "--version")
                        ?? TryGetVersionFromProcess("wsl", "claude --version");
 
-            _cachedClaudeCodeVersion = version ?? "2.1.0";
+            _cachedClaudeCodeVersion = version ?? "2.1.100";
             System.Diagnostics.Debug.WriteLine($"Claude Code version detected: {_cachedClaudeCodeVersion}");
         }
         catch
         {
-            _cachedClaudeCodeVersion = "2.1.0";
-            System.Diagnostics.Debug.WriteLine("Claude Code version detection failed, using fallback 2.1.0");
+            _cachedClaudeCodeVersion = "2.1.100";
+            System.Diagnostics.Debug.WriteLine("Claude Code version detection failed, using fallback 2.1.100");
         }
 
         return _cachedClaudeCodeVersion;
@@ -52,24 +52,26 @@ public class UsageApiService
             };
 
             process.Start();
-            var output = process.StandardOutput.ReadToEnd().Trim();
+            var stdout = process.StandardOutput.ReadToEnd().Trim();
+            var stderr = process.StandardError.ReadToEnd().Trim();
             process.WaitForExit(5000);
 
-            if (!string.IsNullOrWhiteSpace(output))
+            // Extract first dotted-version substring. Handles "2.1.143",
+            // "claude-code 1.2.3", and "2.1.143 (Claude Code)" — the last
+            // shape broke the previous split-and-take-last-token approach.
+            var match = System.Text.RegularExpressions.Regex.Match(stdout, @"\d+\.\d+(?:\.\d+)?");
+            if (match.Success)
             {
-                // Output may be "1.2.3" or "claude-code 1.2.3" — take last token
-                var parts = output.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                var versionString = parts[^1];
-
-                if (System.Text.RegularExpressions.Regex.IsMatch(versionString, @"^\d+\.\d+"))
-                {
-                    return versionString;
-                }
+                return match.Value;
             }
+
+            System.Diagnostics.Debug.WriteLine(
+                $"Version probe [{fileName} {arguments}] no match: exit={process.ExitCode}, stdout='{stdout}', stderr='{stderr}'");
         }
-        catch
+        catch (Exception ex)
         {
-            // Process not found or failed
+            System.Diagnostics.Debug.WriteLine(
+                $"Version probe [{fileName} {arguments}] threw: {ex.Message}");
         }
 
         return null;
@@ -122,11 +124,11 @@ public class UsageApiService
 
                 return null;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
+                // Transient transport/timeout failures — retry with backoff.
                 System.Diagnostics.Debug.WriteLine(
-                    $"Exception in GetUsageAsync (attempt {attempt + 1}/{MaxRetries + 1}): {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                    $"Transient exception in GetUsageAsync (attempt {attempt + 1}/{MaxRetries + 1}): {ex.Message}");
 
                 if (attempt < MaxRetries)
                 {
@@ -135,6 +137,16 @@ public class UsageApiService
                     continue;
                 }
 
+                return null;
+            }
+            catch (Exception ex)
+            {
+                // Non-transient (e.g. JsonException): the request succeeded but
+                // we can't use the response. Retrying won't fix it and burns
+                // rate-limit budget — fail fast.
+                System.Diagnostics.Debug.WriteLine(
+                    $"Non-retryable exception in GetUsageAsync: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return null;
             }
         }

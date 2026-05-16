@@ -69,15 +69,19 @@ public class ExtraUsageData
     [JsonPropertyName("is_enabled")]
     public bool IsEnabled { get; set; }
 
+    // monthly_limit and used_credits arrive as null when extra usage is not enabled.
     [JsonPropertyName("monthly_limit")]
-    public double MonthlyLimit { get; set; }
+    public double? MonthlyLimit { get; set; }
 
     [JsonPropertyName("used_credits")]
-    public double UsedCredits { get; set; }
+    public double? UsedCredits { get; set; }
 
-    public double LimitDollars => MonthlyLimit / 100.0;
-    public double UsedDollars => UsedCredits / 100.0;
-    public int UtilizationPercent => MonthlyLimit > 0 ? (int)(UsedCredits / MonthlyLimit * 100) : 0;
+    public double LimitDollars => (MonthlyLimit ?? 0) / 100.0;
+    public double UsedDollars => (UsedCredits ?? 0) / 100.0;
+    public int UtilizationPercent =>
+        MonthlyLimit is > 0 && UsedCredits is not null
+            ? (int)(UsedCredits.Value / MonthlyLimit.Value * 100)
+            : 0;
 }
 
 public class CredentialsFile
