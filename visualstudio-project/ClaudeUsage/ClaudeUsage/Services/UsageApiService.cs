@@ -13,29 +13,54 @@ public class UsageApiService
 
     private static string? _cachedClaudeCodeVersion;
 
-    private static string GetClaudeCodeVersion()
-    {
-        if (_cachedClaudeCodeVersion != null)
-            return _cachedClaudeCodeVersion;
-
-        try
-        {
-            // Try native Windows first, then WSL
-            var version = TryGetVersionFromProcess("claude", "--version")
-                       ?? TryGetVersionFromProcess("wsl", "claude --version");
-
-            _cachedClaudeCodeVersion = version ?? "2.1.0";
-            System.Diagnostics.Debug.WriteLine($"Claude Code version detected: {_cachedClaudeCodeVersion}");
-        }
-        catch
-        {
-            _cachedClaudeCodeVersion = "2.1.0";
-            System.Diagnostics.Debug.WriteLine("Claude Code version detection failed, using fallback 2.1.0");
-        }
-
+private static string GetClaudeCodeVersion()
+{
+    if (_cachedClaudeCodeVersion != null)
         return _cachedClaudeCodeVersion;
+
+    try
+    {
+        // Try native Windows first via cmd.exe so PATHEXT resolves claude.cmd
+        // (npm installs Claude Code as claude.cmd, which Process.Start with
+        // UseShellExecute=false cannot find directly — see issue #4).
+        var version = TryGetVersionFromProcess("cmd.exe", "/c claude --version");
+
+        // Fall back to WSL only if WSL is actually installed. Invoking wsl.exe
+        // on a system without WSL triggers the Microsoft Store install prompt
+        // rather than failing — see issue #4.
+        if (version == null && IsWslInstalled())
+        {
+            version = TryGetVersionFromProcess("wsl", "claude --version");
+        }
+
+        _cachedClaudeCodeVersion = version ?? "2.1.0";
+        System.Diagnostics.Debug.WriteLine($"Claude Code version detected: {_cachedClaudeCodeVersion}");
+    }
+    catch
+    {
+        _cachedClaudeCodeVersion = "2.1.0";
+        System.Diagnostics.Debug.WriteLine("Claude Code version detection failed, using fallback 2.1.0");
     }
 
+    return _cachedClaudeCodeVersion;
+}
+
+private static bool IsWslInstalled()
+{
+    // Enumerate registered WSL distros without invoking wsl.exe. The Lxss
+    // registry key contains a subkey (GUID-named) per installed distro;
+    // absent or empty means no distros are installed.
+    try
+    {
+        using var lxss = Microsoft.Win32.Registry.CurrentUser
+            .OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Lxss");
+        return lxss?.GetSubKeyNames().Length > 0;
+    }
+    catch
+    {
+        return false;
+    }
+}
     private static string? TryGetVersionFromProcess(string fileName, string arguments)
     {
         try

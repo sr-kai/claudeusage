@@ -25,12 +25,15 @@ public class CredentialService
         );
     }
 
-    private static async Task<bool> IsWslAvailableAsync()
+    private static bool IsWslInstalled()
     {
+        // See UsageApiService.IsWslInstalled — checks the WSL distro registry
+        // key without invoking wsl.exe or touching \\wsl$ paths.
         try
         {
-            var task = Task.Run(() => Directory.Exists(@"\\wsl$") || Directory.Exists(@"\\wsl.localhost"));
-            return await task.WaitAsync(TimeSpan.FromSeconds(5));
+            using var lxss = Microsoft.Win32.Registry.CurrentUser
+                .OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Lxss");
+            return lxss?.GetSubKeyNames().Length > 0;
         }
         catch
         {
@@ -66,43 +69,48 @@ public class CredentialService
             }
         }
 
-        // 2. Check WSL paths (try both \\wsl$ and \\wsl.localhost)
-        await Task.Run(() =>
+        // 2. Check WSL paths (only if WSL is actually installed — accessing
+        //    \\wsl$\ or \\wsl.localhost\ UNC paths on a system without WSL
+        //    triggers the Microsoft Store install prompt). See issue #4.
+        if (IsWslInstalled())
         {
-            string[] wslDistros = ["Debian", "Ubuntu", "Ubuntu-22.04", "Ubuntu-20.04", "kali-linux"];
-            string[] wslRoots = [@"\\wsl.localhost", @"\\wsl$"];
-
-            foreach (var wslRoot in wslRoots)
-            foreach (var distro in wslDistros)
+            await Task.Run(() =>
             {
-                try
-                {
-                    var wslHomePath = $@"{wslRoot}\{distro}\home";
-                    if (!Directory.Exists(wslHomePath)) continue;
+                string[] wslDistros = ["Debian", "Ubuntu", "Ubuntu-22.04", "Ubuntu-20.04", "kali-linux"];
+                string[] wslRoots = [@"\\wsl.localhost", @"\\wsl$"];
 
-                    foreach (var userDir in Directory.GetDirectories(wslHomePath))
+                foreach (var wslRoot in wslRoots)
+                foreach (var distro in wslDistros)
+                {
+                    try
                     {
-                        var credPath = Path.Combine(userDir, ".claude", ".credentials.json");
-                        if (File.Exists(credPath))
+                        var wslHomePath = $@"{wslRoot}\{distro}\home";
+                        if (!Directory.Exists(wslHomePath)) continue;
+
+                        foreach (var userDir in Directory.GetDirectories(wslHomePath))
                         {
-                            try
+                            var credPath = Path.Combine(userDir, ".claude", ".credentials.json");
+                            if (File.Exists(credPath))
                             {
-                                candidates.Add((credPath, File.GetLastWriteTimeUtc(credPath)));
+                                try
+                                {
+                                    candidates.Add((credPath, File.GetLastWriteTimeUtc(credPath)));
+                                }
+                                catch
+                                {
+                                    candidates.Add((credPath, DateTime.MinValue));
+                                }
+                                System.Diagnostics.Debug.WriteLine($"Found WSL credentials at: {credPath}");
                             }
-                            catch
-                            {
-                                candidates.Add((credPath, DateTime.MinValue));
-                            }
-                            System.Diagnostics.Debug.WriteLine($"Found WSL credentials at: {credPath}");
                         }
                     }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"WSL path error ({wslRoot}\\{distro}): {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"WSL path error ({wslRoot}\\{distro}): {ex.Message}");
-                }
-            }
-        }).WaitAsync(TimeSpan.FromSeconds(10));
+            }).WaitAsync(TimeSpan.FromSeconds(10));
+        }
 
         if (candidates.Count == 0)
         {
