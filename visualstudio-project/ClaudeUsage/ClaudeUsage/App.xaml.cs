@@ -55,6 +55,18 @@ public partial class App : System.Windows.Application
 
         // Create the main window (hidden initially)
         _mainWindow = new MainWindow();
+
+        // Realize the HWND and run an initial layout pass now, while hidden.
+        // Without this, the first tray click positions the window before it has
+        // been created/measured, so Left/Top don't fully apply and ActualHeight
+        // is still 0 — the popup appears partway off screen. ShowActivated=false
+        // keeps this from stealing focus or firing Deactivated.
+        _mainWindow.ShowActivated = false;
+        _mainWindow.Opacity = 0;
+        _mainWindow.Show();
+        _mainWindow.Hide();
+        _mainWindow.ShowActivated = true;
+
         _mainWindow.Deactivated += (s, args) =>
         {
             _lastDeactivated = DateTime.Now;
