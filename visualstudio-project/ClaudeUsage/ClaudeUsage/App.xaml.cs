@@ -16,6 +16,7 @@ public partial class App : System.Windows.Application
     private Forms.NotifyIcon? _notifyIcon;
     private MainWindow? _mainWindow;
     private HooksWindow? _hooksWindow;
+    private IconSettingsWindow? _iconSettingsWindow;
     private DispatcherTimer? _refreshTimer;
     private UsageData? _lastUsageData;
     private DateTime _lastUpdated;
@@ -235,7 +236,167 @@ public partial class App : System.Windows.Application
         return closest;
     }
 
-    private Drawing.Icon CreateUsageIcon(int percentage, Drawing.Color bgColor)
+    private IconStyle GetCurrentIconStyle()
+    {
+        var saved = StartupHelper.GetIconStyle();
+        return Enum.TryParse<IconStyle>(saved, out var style) ? style : IconStyle.Badge;
+    }
+
+    private Drawing.Icon CreateUsageIcon(int percentage, Drawing.Color usageColor)
+    {
+        return GetCurrentIconStyle() switch
+        {
+            IconStyle.Number => CreateNumberIcon(percentage, usageColor),
+            IconStyle.Ring => CreateRingIcon(percentage, usageColor),
+            IconStyle.Bar => CreateBarIcon(percentage, usageColor),
+            _ => CreateBadgeIcon(percentage, usageColor)
+        };
+    }
+
+    /// <summary>Shared rounded-rectangle path builder for the tray renderers.</summary>
+    private static Drawing.Drawing2D.GraphicsPath RoundedRect(Drawing.Rectangle rect, int radius)
+    {
+        var path = new Drawing.Drawing2D.GraphicsPath();
+        int d = radius;
+        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+        path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+        path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+        path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
+    /// <summary>Pick dark or white text for legibility against a colored background.</summary>
+    private static Drawing.Color GetContrastColor(Drawing.Color bg)
+    {
+        var luminance = (0.299 * bg.R + 0.587 * bg.G + 0.114 * bg.B) / 255.0;
+        return luminance > 0.6 ? Drawing.Color.FromArgb(20, 20, 20) : Drawing.Color.White;
+    }
+
+    private static bool IsDarkTheme() =>
+        ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
+
+    /// <summary>Bold percentage digits auto-sized to fill the icon, on a color-coded background.</summary>
+    private Drawing.Icon CreateNumberIcon(int percentage, Drawing.Color bgColor)
+    {
+        const int size = 32;
+        const int cornerRadius = 8;
+
+        using var bitmap = new Drawing.Bitmap(size, size);
+        using var g = Drawing.Graphics.FromImage(bitmap);
+        g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.HighQuality;
+        g.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        g.Clear(Drawing.Color.Transparent);
+
+        using (var bgBrush = new Drawing.SolidBrush(bgColor))
+        using (var path = RoundedRect(new Drawing.Rectangle(1, 1, size - 2, size - 2), cornerRadius))
+            g.FillPath(bgBrush, path);
+
+        // 100% won't fit as three digits at a legible size; show a "maxed" marker instead.
+        var text = percentage >= 100 ? "!!" : percentage.ToString();
+        using var textBrush = new Drawing.SolidBrush(GetContrastColor(bgColor));
+
+        // Auto-fit: shrink from a large pixel size until the glyphs fit the padded box.
+        var maxW = size - 4f;
+        var maxH = size - 2f;
+        float fontSize = 24f;
+        var textFont = new Drawing.Font("Segoe UI", fontSize, Drawing.FontStyle.Bold, Drawing.GraphicsUnit.Pixel);
+        while (fontSize > 8f)
+        {
+            var m = g.MeasureString(text, textFont);
+            if (m.Width <= maxW && m.Height <= maxH) break;
+            textFont.Dispose();
+            fontSize -= 1f;
+            textFont = new Drawing.Font("Segoe UI", fontSize, Drawing.FontStyle.Bold, Drawing.GraphicsUnit.Pixel);
+        }
+
+        using (textFont)
+        using (var sf = new Drawing.StringFormat
+        {
+            Alignment = Drawing.StringAlignment.Center,
+            LineAlignment = Drawing.StringAlignment.Center
+        })
+        {
+            g.DrawString(text, textFont, textBrush, new Drawing.RectangleF(1, 0, size - 1, size), sf);
+        }
+
+        return Drawing.Icon.FromHandle(bitmap.GetHicon());
+    }
+
+    /// <summary>Circular progress arc, color-coded by severity.</summary>
+    private Drawing.Icon CreateRingIcon(int percentage, Drawing.Color color)
+    {
+        const int size = 32;
+        const float thickness = 6f;
+
+        using var bitmap = new Drawing.Bitmap(size, size);
+        using var g = Drawing.Graphics.FromImage(bitmap);
+        g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.HighQuality;
+        g.Clear(Drawing.Color.Transparent);
+
+        var trackColor = IsDarkTheme()
+            ? Drawing.Color.FromArgb(90, 255, 255, 255)
+            : Drawing.Color.FromArgb(70, 0, 0, 0);
+
+        var rect = new Drawing.RectangleF(
+            thickness / 2 + 1, thickness / 2 + 1,
+            size - thickness - 2, size - thickness - 2);
+
+        using (var trackPen = new Drawing.Pen(trackColor, thickness))
+            g.DrawEllipse(trackPen, rect);
+
+        var sweep = Math.Clamp(percentage, 0, 100) / 100f * 360f;
+        if (sweep > 0)
+        {
+            using var arcPen = new Drawing.Pen(color, thickness)
+            {
+                StartCap = Drawing.Drawing2D.LineCap.Round,
+                EndCap = Drawing.Drawing2D.LineCap.Round
+            };
+            g.DrawArc(arcPen, rect, -90f, sweep);
+        }
+
+        return Drawing.Icon.FromHandle(bitmap.GetHicon());
+    }
+
+    /// <summary>Bottom-up fill gauge, color-coded by severity.</summary>
+    private Drawing.Icon CreateBarIcon(int percentage, Drawing.Color color)
+    {
+        const int size = 32;
+        const int cornerRadius = 8;
+
+        using var bitmap = new Drawing.Bitmap(size, size);
+        using var g = Drawing.Graphics.FromImage(bitmap);
+        g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.HighQuality;
+        g.Clear(Drawing.Color.Transparent);
+
+        var trackColor = IsDarkTheme()
+            ? Drawing.Color.FromArgb(70, 255, 255, 255)
+            : Drawing.Color.FromArgb(55, 0, 0, 0);
+
+        var outer = new Drawing.Rectangle(3, 1, size - 6, size - 2);
+
+        using (var trackBrush = new Drawing.SolidBrush(trackColor))
+        using (var trackPath = RoundedRect(outer, cornerRadius))
+            g.FillPath(trackBrush, trackPath);
+
+        var pct = Math.Clamp(percentage, 0, 100) / 100f;
+        var fillHeight = (int)Math.Round(outer.Height * pct);
+        if (fillHeight > 0)
+        {
+            using var clip = RoundedRect(outer, cornerRadius);
+            var oldClip = g.Clip;
+            g.SetClip(clip, Drawing.Drawing2D.CombineMode.Replace);
+            using (var fillBrush = new Drawing.SolidBrush(color))
+                g.FillRectangle(fillBrush,
+                    new Drawing.Rectangle(outer.X, outer.Bottom - fillHeight, outer.Width, fillHeight));
+            g.Clip = oldClip;
+        }
+
+        return Drawing.Icon.FromHandle(bitmap.GetHicon());
+    }
+
+    private Drawing.Icon CreateBadgeIcon(int percentage, Drawing.Color bgColor)
     {
         // Try to load SVG icon from embedded resources
         var resourceName = GetSvgResourceName(percentage);
@@ -345,9 +506,9 @@ public partial class App : System.Windows.Application
 
     private Drawing.Color GetColorForUsage(double utilization)
     {
-        if (utilization >= 90) return Drawing.Color.FromArgb(239, 68, 68);     // Red
-        if (utilization >= 70) return Drawing.Color.FromArgb(234, 179, 8);     // Yellow
-        return Drawing.Color.FromArgb(34, 197, 94);                             // Green
+        if (utilization >= StartupHelper.GetCritThreshold()) return Drawing.Color.FromArgb(239, 68, 68); // Red
+        if (utilization >= StartupHelper.GetWarnThreshold()) return Drawing.Color.FromArgb(234, 179, 8); // Yellow
+        return Drawing.Color.FromArgb(34, 197, 94);                                                       // Green
     }
 
     private void UpdateTrayIconError()
@@ -376,15 +537,19 @@ public partial class App : System.Windows.Application
         }
 
         // Refresh the icon with current usage data to apply new theme colors
-        if (_lastUsageData != null)
-        {
-            var sessionUtilization = _lastUsageData.FiveHour?.Utilization ?? 0;
-            var maxUtilization = Math.Max(
-                sessionUtilization,
-                _lastUsageData.SevenDay?.Utilization ?? 0
-            );
-            UpdateTrayIcon((int)sessionUtilization, maxUtilization);
-        }
+        RefreshTrayIconFromLastData();
+    }
+
+    /// <summary>Re-render the tray icon from the most recent usage data (e.g. after a style or theme change).</summary>
+    private void RefreshTrayIconFromLastData()
+    {
+        if (_lastUsageData == null) return;
+        var sessionUtilization = _lastUsageData.FiveHour?.Utilization ?? 0;
+        var maxUtilization = Math.Max(
+            sessionUtilization,
+            _lastUsageData.SevenDay?.Utilization ?? 0
+        );
+        UpdateTrayIcon((int)sessionUtilization, maxUtilization);
     }
 
     private void UpdateTrayIcon(int percentage, double utilization)
@@ -419,6 +584,17 @@ public partial class App : System.Windows.Application
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(nint hWnd);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct POINT { public int X; public int Y; }
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("Shcore.dll")]
+    private static extern int GetDpiForMonitor(nint hmonitor, int dpiType, out uint dpiX, out uint dpiY);
 
     private void CreateContextMenu()
     {
@@ -491,6 +667,14 @@ public partial class App : System.Windows.Application
             languageItem.Items.Add(langItem);
         }
 
+        // Icon settings (opens a dedicated window: style + severity thresholds)
+        var iconSettingsItem = new System.Windows.Controls.MenuItem
+        {
+            Header = LocalizationService.T("icon_settings"),
+            Icon = new SymbolIcon { Symbol = SymbolRegular.Image24 }
+        };
+        iconSettingsItem.Click += (s, e) => ShowIconSettingsWindow();
+
         var exitItem = new System.Windows.Controls.MenuItem
         {
             Header = LocalizationService.T("exit"),
@@ -504,6 +688,7 @@ public partial class App : System.Windows.Application
 
         _contextMenu.Items.Add(refreshItem);
         _contextMenu.Items.Add(showWidgetItem);
+        _contextMenu.Items.Add(iconSettingsItem);
         _contextMenu.Items.Add(launchAtLoginItem);
         _contextMenu.Items.Add(hooksItem);
         _contextMenu.Items.Add(languageItem);
@@ -524,6 +709,21 @@ public partial class App : System.Windows.Application
         _hooksWindow.Closed += (s, e) => _hooksWindow = null;
         _hooksWindow.Show();
         _hooksWindow.Activate();
+    }
+
+    private void ShowIconSettingsWindow()
+    {
+        // Reuse a single instance: bring it forward if already open.
+        if (_iconSettingsWindow != null)
+        {
+            try { _iconSettingsWindow.Activate(); return; }
+            catch { _iconSettingsWindow = null; }
+        }
+
+        _iconSettingsWindow = new IconSettingsWindow(RefreshTrayIconFromLastData);
+        _iconSettingsWindow.Closed += (s, e) => _iconSettingsWindow = null;
+        _iconSettingsWindow.Show();
+        _iconSettingsWindow.Activate();
     }
 
     private void ShowContextMenu()
@@ -552,7 +752,69 @@ public partial class App : System.Windows.Application
         }
         catch { }
 
+        // Open the menu above-left of the cursor and clamp it to the work area so it
+        // never spills onto the taskbar (the tray sits in the bottom-right corner).
+        // Pre-position with an estimate to avoid a flash, then correct to the real
+        // size once measured in ContextMenu_Opened.
+        _contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.AbsolutePoint;
+        var cursor = System.Windows.Forms.Cursor.Position;
+        var work = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
+        var scale = GetDpiScaleAt(cursor.X, cursor.Y);
+        PlaceContextMenu(cursor, work, scale, 240, 320);
+
+        _contextMenu.Opened -= ContextMenu_Opened;
+        _contextMenu.Opened += ContextMenu_Opened;
         _contextMenu.IsOpen = true;
+    }
+
+    private void ContextMenu_Opened(object? sender, System.Windows.RoutedEventArgs e)
+    {
+        if (_contextMenu == null) return;
+        if (System.Windows.PresentationSource.FromVisual(_contextMenu)?.CompositionTarget == null) return;
+
+        _contextMenu.UpdateLayout();
+        var w = _contextMenu.ActualWidth;
+        var h = _contextMenu.ActualHeight;
+        if (w <= 0 || h <= 0) return;
+
+        var cursor = System.Windows.Forms.Cursor.Position;
+        var work = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
+        var scale = GetDpiScaleAt(cursor.X, cursor.Y);
+        PlaceContextMenu(cursor, work, scale, w, h);
+    }
+
+    // Positions the context menu (AbsolutePoint, DIP screen coords) so its bottom-right
+    // sits near the cursor and it grows up-left, fully inside the work area.
+    private void PlaceContextMenu(Drawing.Point cursorPx, Drawing.Rectangle workPx, double scale, double wDip, double hDip)
+    {
+        if (_contextMenu == null) return;
+
+        double cx = cursorPx.X / scale, cy = cursorPx.Y / scale;
+        double wl = workPx.Left / scale, wt = workPx.Top / scale;
+        double wr = workPx.Right / scale, wb = workPx.Bottom / scale;
+
+        double left = cx - wDip;                       // grow left from the cursor
+        if (left < wl) left = Math.Min(cx, wr - wDip); // fall back to growing right
+        if (left < wl) left = wl;
+
+        double top = cy - hDip;                         // bottom edge at the cursor
+        if (top + hDip > wb) top = wb - hDip;          // keep clear of the taskbar
+        if (top < wt) top = wt;
+
+        _contextMenu.HorizontalOffset = left;
+        _contextMenu.VerticalOffset = top;
+    }
+
+    private static double GetDpiScaleAt(int xPx, int yPx)
+    {
+        try
+        {
+            var mon = MonitorFromPoint(new POINT { X = xPx, Y = yPx }, MONITOR_DEFAULTTONEAREST);
+            if (GetDpiForMonitor(mon, 0 /* MDT_EFFECTIVE_DPI */, out var dpiX, out _) == 0 && dpiX > 0)
+                return dpiX / 96.0;
+        }
+        catch { }
+        return 1.0;
     }
 
     private void ShowPopup()

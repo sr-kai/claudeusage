@@ -73,6 +73,68 @@ public static class StartupHelper
         }
     }
 
+    public static string? GetIconStyle()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, false);
+            return key?.GetValue("IconStyle") as string;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static void SaveIconStyle(string style)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(SettingsKeyPath);
+            key.SetValue("IconStyle", style);
+        }
+        catch
+        {
+            // Silently fail
+        }
+    }
+
+    // Severity color thresholds (percent utilization). Defaults match the
+    // previously hard-coded values: warn (yellow) at 70, critical (red) at 90.
+    public static int GetWarnThreshold() => GetIntSetting("WarnThreshold", 70);
+    public static int GetCritThreshold() => GetIntSetting("CritThreshold", 90);
+    public static void SaveWarnThreshold(int value) => SaveIntSetting("WarnThreshold", value);
+    public static void SaveCritThreshold(int value) => SaveIntSetting("CritThreshold", value);
+
+    private static int GetIntSetting(string name, int fallback)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, false);
+            var value = key?.GetValue(name);
+            if (value is int i) return i;
+            if (value is string s && int.TryParse(s, out var parsed)) return parsed;
+            return fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private static void SaveIntSetting(string name, int value)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(SettingsKeyPath);
+            key.SetValue(name, value, RegistryValueKind.DWord);
+        }
+        catch
+        {
+            // Silently fail
+        }
+    }
+
     public static string? GetHookSetting(string name)
     {
         try

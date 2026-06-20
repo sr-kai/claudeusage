@@ -17,6 +17,7 @@ Rate limits are shared across claude.ai, Claude Code, and its IDE extensions, so
 - **Speedometer gauges** — beautiful gauges with gradient arcs (green/orange/red), animated needle, tick marks, and percentage display
 - **Time marker** — white line on each gauge showing elapsed time in the current period, so you can instantly see whether your usage is ahead of or behind the limit
 - **Live tray icon** with dynamic SVG icons showing usage percentage (0-100%), color-coded status dot, and theme-aware colors for light and dark taskbars
+- **Customizable tray icon** — pick how usage is drawn (Badge, Number, Ring, or Bar) and set your own warning/critical color thresholds, all from an **Icon Settings** window
 - **Detail popup** (left-click) — Session gauge (5h window), Weekly gauge (7d window), plus collapsible Sonnet Only and Overage cards with gradient progress bars
 - **Smart credential discovery** — automatically finds credentials from Claude Code native for Windows or WSL distros (Debian, Ubuntu, etc.), picking the most recently used installation when both exist
 - **WSL availability guard** — WSL paths are skipped with a 3-second timeout if WSL isn't running, so native-only users experience zero startup delay
@@ -39,6 +40,19 @@ Optionally let the app react to your Claude Code sessions live — both **local*
 - **Remote sessions in one command** — run a single `curl … | sh` on the remote machine to install a tiny relay. It fails fast when the widget is offline (so it never stalls your session) and reconnects on its own. Includes an optional Windows Firewall auto-rule (handles the WSL Hyper-V firewall too).
 - **Windows 11 Settings-style setup** — manage everything from a dedicated **Claude Code Hooks** window (tray menu): enable/disable hooks, pick the shortcut key, set up remote machines.
 
+### Customizable tray icon
+
+Choose how the usage percentage appears in your tray, and when it changes color, from the **Icon Settings** window (right-click the tray icon → **Icon Settings**):
+
+![Icon Settings](icon-settings.png)
+
+- **Icon styles** — **Badge** (the classic number with a frame and status dot), **Number** (a large bold percentage that fills the icon — easiest to read at a glance), **Ring** (a circular progress arc), or **Bar** (a bottom-up fill gauge).
+- **Severity thresholds** — set the usage levels at which the icon turns **yellow** (warning) and **red** (critical). Defaults are 70% and 90%, matching the previous fixed behavior.
+
+The Number, Ring, and Bar styles, color-coded by severity:
+
+![Tray icon styles](icon-styles.png)
+
 ## Requirements
 
 - Windows 10 or Windows 11 (64-bit)
@@ -55,7 +69,7 @@ No build tools required. Download the latest `ClaudeUsage.exe` from the [Release
 |--------|-------------|
 | **Hover** over the tray icon | Tooltip shows session and weekly usage percentages with reset times |
 | **Left-click** the tray icon | Opens the detail popup with gauges, Sonnet/Overage cards, and reset countdowns |
-| **Right-click** the tray icon | Context menu: Refresh, Show/Hide Widget, Launch at Login, Claude Code Hooks, Language selector, Exit |
+| **Right-click** the tray icon | Context menu: Refresh, Show/Hide Widget, Icon Settings, Launch at Login, Claude Code Hooks, Language selector, Exit |
 | **Escape** or click outside | Closes the detail popup |
 
 ### Tray icon not visible?
