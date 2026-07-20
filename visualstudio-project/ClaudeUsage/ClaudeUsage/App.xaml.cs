@@ -364,10 +364,19 @@ public partial class App : System.Windows.Application
 
     private void OnThemeChanged(Wpf.Ui.Appearance.ApplicationTheme currentTheme, System.Windows.Media.Color systemAccent)
     {
-        // Apply the new theme to app-level resources (context menu, etc.)
+        // Rebuild app-level resources (context menu, etc.) for the new theme.
+        //
+        // Do NOT call ApplicationThemeManager.Apply here. By the time this handler
+        // runs the theme has ALREADY been applied — that is what raised Changed.
+        // In WPF-UI 3.0.5, Apply() unconditionally re-raises Changed (its
+        // ResourceDictionaryManager.UpdateDictionary replaces the theme dictionary
+        // and returns true even when the theme is unchanged), so calling Apply from
+        // inside the Changed handler recurses without a base case:
+        //   Changed -> OnThemeChanged -> Apply -> Changed -> ... -> StackOverflow.
+        // StackOverflowException is uncatchable, so the try/catch below does not
+        // save us — the process dies (0xC00000FD).
         try
         {
-            ApplicationThemeManager.Apply(currentTheme);
             CreateContextMenu();
         }
         catch (Exception ex)
